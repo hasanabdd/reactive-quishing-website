@@ -306,7 +306,7 @@ export default function HomePage() {
 
               <p className="text-sm text-slate-200/90 sm:text-base">
                 Scan QR codes, paste URLs, and simulate how your security engine
-                would react. Perfect for demos, presentations, and your LOCO
+                would react. Perfect for demos, presentations, and your
                 project prototype.
               </p>
 
@@ -532,7 +532,7 @@ export default function HomePage() {
                 Security dashboard
               </h2>
               <p className="mt-1 text-sm text-slate-300">
-                A demo view of how LOCO could track scans and threats over time.
+                A demo view of how it could track scans and threats over time.
               </p>
             </div>
 
@@ -758,7 +758,7 @@ function ResultSection({ type, url, onScanAnother }: ResultProps) {
 
       <p className="mt-4 rounded-xl bg-slate-950/70 px-3 py-2 text-[10px] text-slate-400">
         ℹ️ This is a simulated front-end result for demonstration purposes. In
-        your final LOCO app, these scores would come from your ML model and
+        your final app, these scores would come from your ML model and
         backend.
       </p>
 
