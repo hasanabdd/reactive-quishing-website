@@ -12,27 +12,23 @@ import React, {
 type View = 'home' | 'upload' | 'link' | 'loading' | 'result' | 'dashboard';
 type ResultType = 'safe' | 'suspicious' | 'malicious';
 
-const classifyUrl = (rawUrl: string): ResultType => {
-  const url = rawUrl.toLowerCase();
+const classifyUrl = async (url: string): Promise<ResultType> => {
+  try {
+    const response = await fetch("http://localhost:8000/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
 
-  const maliciousTlds = ['.ru', '.tk', '.cn'];
-  const suspiciousWords = ['free', 'promo', 'offer', 'gift', 'win', 'login', 'verify'];
-  const phishingHints = ['bank', 'paypal', 'appleid', 'office365'];
+    const data = await response.json();
 
-  const hasBadTld = maliciousTlds.some((tld) => url.includes(tld));
-  const hasSuspiciousWord = suspiciousWords.some((w) => url.includes(w));
-  const hasPhishingHint = phishingHints.some((w) => url.includes(w));
-  const isHttpOnly = url.startsWith('http://') && !url.startsWith('https://');
-
-  if (hasBadTld || (hasPhishingHint && (hasSuspiciousWord || isHttpOnly))) {
-    return 'malicious';
+    if (data.label === "phishing") return "malicious";
+    if (data.label === "safe") return "safe";
+    return "suspicious";
+  } catch (err) {
+    console.error(err);
+    return "suspicious";
   }
-
-  if (hasSuspiciousWord || isHttpOnly || url.length > 70) {
-    return 'suspicious';
-  }
-
-  return 'safe';
 };
 
 const resultCopy: Record<
@@ -212,17 +208,44 @@ export default function HomePage() {
     handleFile(file);
   };
 
-  const handleUrlSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!urlInput.trim()) {
-      showToast('Please paste a URL to analyze.');
-      return;
-    }
-    const type = classifyUrl(urlInput.trim());
+  const handleUrlSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+
+  if (!urlInput.trim()) {
+    showToast("Please paste a URL to analyze.");
+    return;
+  }
+
+  setView("loading");
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: urlInput.trim() }),
+    });
+
+    const data = await response.json();
+
+    const backendLabel = data.label;
+
+    const resultMap: any = {
+      phishing: "malicious",
+      safe: "safe",
+    };
+
+    const resultType = resultMap[backendLabel] || "suspicious";
+
     setCurrentUrl(urlInput.trim());
-    setResultType(type);
-    setView('result');
-  };
+    setResultType(resultType);
+    setView("result");
+
+  } catch (error) {
+    console.error(error);
+    showToast("Backend error. Is FastAPI running?");
+    setView("home");
+  }
+};
 
   const handlePaste = async () => {
     try {
