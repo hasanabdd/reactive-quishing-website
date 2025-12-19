@@ -9,6 +9,24 @@ import React, {
   ChangeEvent,
 } from 'react';
 
+import jsQR from "jsqr";
+
+const scanQRFromVideo = async (video: HTMLVideoElement) => {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  context!.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const imageData = context!.getImageData(0, 0, canvas.width, canvas.height);
+
+  const qr = jsQR(imageData.data, canvas.width, canvas.height);
+
+  return qr?.data || null; // returns the URL if found
+};
+
 type View = 'home' | 'upload' | 'link' | 'loading' | 'result' | 'dashboard';
 type ResultType = 'safe' | 'suspicious' | 'malicious';
 
@@ -146,8 +164,32 @@ export default function HomePage() {
         });
         streamRef.current = stream;
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();   // REQUIRED FIX
+
+
+            // Auto scan loop every 300ms
+            const scanLoop = () => {
+            if (!videoRef.current) return;
+
+             scanQRFromVideo(videoRef.current).then((qrUrl) => {
+            if (qrUrl) {
+              setShowCamera(false);
+              processRealURL(qrUrl);
+    }
+  });
+
+  // Continue scanning only while modal is open
+  if (showCamera) {
+    requestAnimationFrame(scanLoop);
+  }
+};
+
+requestAnimationFrame(scanLoop);
+
+}
+
+
         setCameraError(null);
       } catch (err) {
         console.error(err);
@@ -215,6 +257,35 @@ export default function HomePage() {
     showToast("Please paste a URL to analyze.");
     return;
   }
+  const processRealURL = async (url: string) => {
+  setView("loading");
+  setCurrentUrl(url);
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+
+    const data = await response.json();
+
+    const resultType =
+      data.label === "phishing"
+        ? "malicious"
+        : data.label === "safe"
+        ? "safe"
+        : "suspicious";
+
+    setResultType(resultType);
+    setView("result");
+  } catch (error) {
+    console.error(error);
+    showToast("Backend error. Is FastAPI running?");
+    setView("home");
+  }
+};
+
 
   setView("loading");
 
@@ -246,6 +317,35 @@ export default function HomePage() {
     setView("home");
   }
 };
+const processRealURL = async (url: string) => {
+  setView("loading");
+  setCurrentUrl(url);
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+
+    const data = await response.json();
+
+    const resultType =
+      data.label === "phishing"
+        ? "malicious"
+        : data.label === "safe"
+        ? "safe"
+        : "suspicious";
+
+    setResultType(resultType);
+    setView("result");
+  } catch (error) {
+    console.error(error);
+    showToast("Backend error. Is FastAPI running?");
+    setView("home");
+  }
+};
+
 
   const handlePaste = async () => {
     try {
@@ -284,29 +384,7 @@ export default function HomePage() {
           <span>Quishing Detector</span>
         </button>
 
-        <div className="flex items-center gap-2 rounded-2xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs sm:text-sm">
-          <span className="mr-1 text-slate-300">Demo result:</span>
-          {(['safe', 'suspicious', 'malicious'] as ResultType[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => setDemoResult(r)}
-              className={[
-                'rounded-xl px-2.5 py-1 font-semibold transition-all',
-                demoResult === r
-                  ? r === 'safe'
-                    ? 'bg-emerald-500/90 text-white shadow-lg shadow-emerald-500/40'
-                    : r === 'suspicious'
-                    ? 'bg-amber-500/90 text-white shadow-lg shadow-amber-500/40'
-                    : 'bg-red-500/90 text-white shadow-lg shadow-red-500/40'
-                  : 'bg-slate-800/70 text-slate-200 hover:bg-slate-700',
-              ].join(' ')}
-            >
-              {r === 'safe' && '✅ Safe'}
-              {r === 'suspicious' && '⚠️ Suspicious'}
-              {r === 'malicious' && '🚫 Malicious'}
-            </button>
-          ))}
-        </div>
+
       </nav>
 
       {/* Main container */}
@@ -327,11 +405,6 @@ export default function HomePage() {
                 Protect yourself from malicious QR codes & phishing links
               </h1>
 
-              <p className="text-sm text-slate-200/90 sm:text-base">
-                Scan QR codes, paste URLs, and simulate how your security engine
-                would react. Perfect for demos, presentations, and your
-                project prototype.
-              </p>
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
                 <button
@@ -361,7 +434,7 @@ export default function HomePage() {
                 {
                   icon: '🔍',
                   title: 'Advanced detection',
-                  text: 'Classifies URLs into safe, suspicious, or malicious instantly.',
+                  text: 'Classifies URLs into safe or malicious instantly.',
                 },
                 {
                   icon: '🔗',
@@ -435,10 +508,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <p className="mt-3 text-center text-[11px] text-slate-400">
-                💡 This is a demo. Any image will be treated as a QR code and
-                classified based on the selected demo result.
-              </p>
+
 
               <div className="mt-5 flex justify-center">
                 <button
@@ -563,7 +633,7 @@ export default function HomePage() {
               {[
                 { icon: '📊', label: 'Total scans', value: '12,847' },
                 { icon: '✅', label: 'Safe links', value: '10,234' },
-                { icon: '⚠️', label: 'Suspicious links', value: '1,892' },
+                { icon: '⭐', label: 'Trusted users', value: '1,892' }, 
                 { icon: '🚫', label: 'Threats blocked', value: '721' },
               ].map((s) => (
                 <div
@@ -602,12 +672,7 @@ export default function HomePage() {
                         type: 'safe',
                         time: '2 min ago',
                       },
-                      {
-                        url: 'suspicious-promo.xyz',
-                        status: 'Suspicious',
-                        type: 'suspicious',
-                        time: '5 min ago',
-                      },
+                   
                       {
                         url: 'phishing-bank.ru',
                         status: 'Malicious',
@@ -673,7 +738,7 @@ export default function HomePage() {
           <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-100">
-                📸 Scan QR code (demo)
+                📸 Scan QR code 
               </h3>
               <button
                 onClick={() => setShowCamera(false)}
@@ -696,22 +761,12 @@ export default function HomePage() {
               <p className="mt-2 text-[11px] text-red-300">{cameraError}</p>
             )}
 
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => {
-                  setShowCamera(false);
-                  startFakeScan('https://example.com/from-camera');
-                }}
-                className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-sky-500/40 hover:-translate-y-[1px] hover:shadow-2xl"
-              >
-                📸 Capture & simulate scan
-              </button>
-            </div>
+       <div className="mt-4 flex gap-2">
 
-            <p className="mt-2 text-[10px] text-slate-400">
-              This is a front-end demo only. No frames are uploaded; we just
-              trigger the same classification flow.
-            </p>
+</div>
+
+
+
           </div>
         </div>
       )}
@@ -779,11 +834,6 @@ function ResultSection({ type, url, onScanAnother }: ResultProps) {
         ))}
       </div>
 
-      <p className="mt-4 rounded-xl bg-slate-950/70 px-3 py-2 text-[10px] text-slate-400">
-        ℹ️ This is a simulated front-end result for demonstration purposes. In
-        your final app, these scores would come from your ML model and
-        backend.
-      </p>
 
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {type === 'safe' && (
