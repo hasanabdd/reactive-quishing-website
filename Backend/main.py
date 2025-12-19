@@ -9,9 +9,13 @@ from qr_model import classify_url
 
 app = FastAPI()
 
+# ----------------------------------------------------
+# FINAL CORRECT CORS CONFIGURATION (ONLY THIS BLOCK)
+# ----------------------------------------------------
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://192.168.56.1:3000",   # your actual frontend origin
 ]
 
 app.add_middleware(
@@ -21,6 +25,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ----------------------------------------------------
 
 class UrlRequest(BaseModel):
     url: str
@@ -52,7 +58,6 @@ def predict_url(req: UrlRequest):
 def scan_qr(req: ImageRequest):
     data = req.image
 
-    # Handle data URLs (data:image/png;base64,...)
     if "," in data:
         _, data = data.split(",", 1)
 
